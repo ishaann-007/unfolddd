@@ -23,5 +23,6 @@ Overall goal: complete the existing project with minimal unnecessary changes
   - Replaced UTC-based daily date keys with a single local-calendar-date helper for check-ins, streaks, reflection daily keys, daily writing, and 14-day trend grouping; validated with a successful build and targeted date checks.
 - M8 — DONE
   - Replaced unsafe innerHTML interpolation for user-controlled journal, ritual, and saved affirmation content with DOM/textContent rendering, and validated the build plus a focused security check proving user text is treated as plain text while demo A/B isolation and Supabase user filtering remain intact.
-- M9 — NOT STARTED
+- M9 — DONE
+  - Added the missing mobile bottom-nav items for Ritual and Trends using the existing navigateTo() data-page flow, and validated the build plus a focused check confirming the mobile navigation entries are present and the app still compiles cleanly.
 - M10 — NOT STARTED
