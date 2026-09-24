@@ -15,7 +15,8 @@ Overall goal: complete the existing project with minimal unnecessary changes
   - Verified the check-in flow already exists and persists check-in data; build passes without requiring code changes.
 - M4 — DONE
   - Added demo-only local journal persistence keyed by the active demo user, kept the Supabase journal path intact for real users, and validated that demo A and demo B stay isolated without writing to the real Supabase table.
-- M5 — NOT STARTED
+- M5 — DONE
+  - Validated the existing Breathwork, Rituals, Affirmations, and Reflection implementations and confirmed the project still builds successfully without any required code changes.
 - M6 — NOT STARTED
 - M7 — NOT STARTED
 - M8 — NOT STARTED
