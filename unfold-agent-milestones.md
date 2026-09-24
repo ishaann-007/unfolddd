@@ -4,6 +4,8 @@
 
 Finish the existing Unfold project with the **minimum possible agent usage**.
 
+Keep the existing Supabase integration available for later. For the current demo/testing flow, use **local development seed accounts** so the app can be tested without Supabase credentials.
+
 ## Agent Rules
 
 * Do **not** rewrite the project.
@@ -15,9 +17,11 @@ Finish the existing Unfold project with the **minimum possible agent usage**.
 * After each milestone, run only the specified validation.
 * If the requested functionality already works, do not change it.
 * Fix errors directly instead of investigating unrelated code.
-* Do **not** bypass, weaken, or fake authentication for testing.
-* Do **not** hard-code test credentials into source code.
-* Do **not** commit passwords, API secrets, or private credentials.
+* Keep the existing Supabase integration available for later.
+* Do **not** remove or replace existing Supabase code unnecessarily.
+* Do **not** hard-code real credentials, API keys, or secrets.
+* Seed accounts must be clearly limited to local/demo development.
+* Do **not** create an authentication bypass for production.
 * Stop after completing the current milestone.
 
 ---
@@ -49,34 +53,55 @@ Open the Vite app and verify:
 
 ---
 
-## M1 — Test Accounts
+## M1 — Local Demo Seed Accounts
 
-**Files:** None unless Supabase configuration requires a documented setup change.
+**Files:** `app.js`, `supabase.js`, `index.html` only if required.
 
-Set up **two dedicated Supabase test accounts** for manual testing.
+Add a **development/demo-only local authentication path** with two deterministic seed accounts.
 
-Use the Supabase project/dashboard or another existing supported Supabase account-creation method.
+Requirements:
 
-Do **not**:
+* Account A for normal testing.
+* Account B for user-isolation testing.
+* Login must work without Supabase.
+* Logout must work.
+* Demo session must survive page refresh.
+* Demo account identity must be available to the existing application.
+* Keep the existing Supabase authentication code intact for later use.
+* Do not remove Supabase dependencies or configuration.
+* Do not add a production authentication bypass.
+* Do not expose real credentials or secrets.
+* Keep the implementation minimal.
 
-* Add automatic login.
-* Add a test-auth bypass.
-* Hard-code credentials.
-* Commit passwords.
-* Modify production authentication behavior.
+Use clearly marked demo credentials/configuration appropriate for local development only.
 
-Use:
+### Manual test
 
-* **Test Account A** for normal feature testing.
-* **Test Account B** for user-data isolation testing.
+Test Account A:
 
-### Manual check
+```text
+Login
+→ Refresh
+→ Verify still logged in
+→ Logout
+```
 
-Verify both accounts can authenticate through the existing application.
+Test Account B:
 
-If account creation is blocked by Supabase email confirmation or project configuration, report the exact blocker.
+```text
+Login
+→ Verify Account B is a separate user
+→ Logout
+```
 
-**Done:** Two dedicated test accounts are available, or a specific Supabase configuration blocker is identified.
+Verify:
+
+* Both accounts can enter the application.
+* Sessions survive refresh.
+* Logout works.
+* Account identity changes correctly.
+
+**Done:** Both local demo accounts can reliably authenticate without Supabase, while the existing Supabase integration remains available.
 
 ---
 
@@ -84,16 +109,18 @@ If account creation is blocked by Supabase email confirmation or project configu
 
 **Files:** `app.js`, `supabase.js`, `index.html` only if required.
 
-Fix:
+Fix the existing authentication UI/session behavior so it works correctly with the current demo authentication path.
 
-* Sign up
+Fix only:
+
 * Sign in
 * Sign out
 * Session restoration
 * Auth overlay
+* User/account display
 * Auth error handling
 
-Do not change the Supabase architecture.
+Do not redesign authentication.
 
 ### Manual test
 
@@ -101,6 +128,7 @@ Using Test Account A:
 
 ```text
 Sign In
+→ Home
 → Refresh
 → Sign Out
 ```
@@ -108,13 +136,13 @@ Sign In
 Verify:
 
 * Sign in works.
-* Auth overlay disappears after login.
+* Auth overlay disappears.
 * User/account display updates.
 * Session survives refresh.
-* Sign out returns to the auth UI.
-* Invalid credentials produce an appropriate error.
+* Sign out returns to auth UI.
+* Invalid credentials show an error.
 
-**Done:** Test Account A can complete the authentication flow.
+**Done:** Test Account A completes the full local demo auth flow.
 
 ---
 
@@ -135,8 +163,6 @@ Fix:
 Use the existing `save()` / `load()` helpers.
 
 ### Manual test
-
-After signing in:
 
 ```text
 Check-in
@@ -162,18 +188,20 @@ Verify:
 
 **Files:** `app.js`, `supabase.js` only if required.
 
+For the current demo, make journal functionality usable with the local demo accounts without removing the existing Supabase journal implementation.
+
 Fix:
 
 * Draft saving
-* Journal insert
+* Journal insert/save
 * Journal list
 * Journal loading
-* Current-user filtering
+* Current-user separation
 * Save/load errors
 
-Use the existing `journal_entries` table.
+Keep the existing Supabase journal path available for later integration.
 
-Do not implement cloud sync.
+Do not implement general cloud sync.
 
 ### Manual test
 
@@ -195,11 +223,16 @@ Verify:
 * Entry can be reopened.
 * Entry survives refresh.
 
-Then use Test Account B and verify:
+Then use Test Account B:
 
-* Account B cannot see Account A's journal entry.
+```text
+Login as B
+→ Open Journal
+```
 
-**Done:** Authenticated users can save, list, and reopen their own journal entries without cross-user access.
+Verify Account A's entry is not visible to B.
+
+**Done:** Both demo users have isolated journal data.
 
 ---
 
@@ -319,17 +352,18 @@ Replace unsafe rendering with:
 
 Do not rewrite unrelated rendering.
 
-Ensure journal queries remain restricted to the authenticated user.
+Ensure demo-user data remains separated and the existing Supabase journal queries remain restricted to the authenticated user when Supabase mode is used.
 
 ### Validation
 
 Verify:
 
 * User-provided journal/content text is rendered as text.
-* Journal queries use the authenticated user.
-* Test Account B cannot access Test Account A's journal entries.
+* Account A cannot see Account B's local journal data.
+* Account B cannot see Account A's local journal data.
+* Existing Supabase queries retain user filtering.
 
-**Done:** User-provided journal/content text cannot become executable HTML and journal data remains user-isolated.
+**Done:** User-provided content cannot become executable HTML and user data remains isolated.
 
 ---
 
@@ -369,10 +403,10 @@ Run:
 npm run build
 ```
 
-Then test:
+Then test with **Test Account A**:
 
 ```text
-Sign in
+Login
 → Home
 → Check-in
 → Journal
@@ -383,37 +417,38 @@ Sign in
 → Reflection
 → Settings
 → Refresh
-→ Sign out
+→ Logout
 ```
 
-Use Test Account A for the main flow.
-
-Also verify:
+Then test isolation:
 
 ```text
 Test Account A
 → Create journal entry
+→ Logout
 
 Test Account B
-→ Sign in
+→ Login
+→ Open Journal
 → Verify A's entry is not visible
 ```
 
 ### Final checks
 
 * Build succeeds.
-* Authentication works.
+* Local demo authentication works.
 * Session survives refresh.
 * Check-in works.
 * Journal works.
-* Journal isolation works.
+* User data is isolated.
 * Trends work.
 * Daily features work.
 * Settings/themes work.
 * Mobile navigation works.
 * No critical console errors.
+* Supabase integration remains available in the codebase.
 
-**Done:** Build succeeds and the main demo flow works.
+**Done:** Build succeeds and the complete demo flow works without requiring live Supabase authentication.
 
 ---
 
@@ -430,6 +465,8 @@ Use this format:
 > Do not refactor or inspect unrelated functionality.
 >
 > Make the smallest change necessary.
+>
+> Keep existing Supabase integration intact unless the milestone explicitly requires changing it.
 >
 > Run the specified validation.
 >
