@@ -2,8 +2,15 @@
     Unfold— app.js
    ═══════════════════════════════════════════════ */
 
-// Import Supabase client for authentication
-import { supabase, getCurrentUser } from './supabase.js';
+// Import Supabase client for authentication and the demo-only local auth path.
+import {
+  supabase,
+  getCurrentUser,
+  LOCAL_DEMO_ACCOUNTS,
+  signInDemo,
+  signOutDemo,
+  isDemoSessionActive
+} from './supabase.js';
 
 /* ─── DATA: THEMES ─── */
 const THEMES = {
@@ -1781,7 +1788,8 @@ function updateUserDisplay(user) {
 }
 
 /**
- * Handle sign in with email and password
+ * Handle sign in with email and password.
+ * Demo accounts are checked first so local development works without Supabase.
  */
 async function handleSignIn() {
   const email = authEmail?.value.trim();
@@ -1797,6 +1805,15 @@ async function handleSignIn() {
   if (signInBtn) signInBtn.disabled = true;
   if (signUpBtn) signUpBtn.disabled = true;
   hideAuthError();
+
+  const demoUser = signInDemo(email, password);
+  if (demoUser) {
+    hideAuthOverlay();
+    updateUserDisplay(demoUser);
+    if (signInBtn) signInBtn.disabled = false;
+    if (signUpBtn) signUpBtn.disabled = false;
+    return;
+  }
   
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -1821,7 +1838,8 @@ async function handleSignIn() {
 }
 
 /**
- * Handle sign up with email and password
+ * Handle sign up with email and password.
+ * Demo credentials remain valid locally while the Supabase code stays available.
  */
 async function handleSignUp() {
   const email = authEmail?.value.trim();
@@ -1833,6 +1851,13 @@ async function handleSignUp() {
     return;
   }
   
+  const demoUser = signInDemo(email, password);
+  if (demoUser) {
+    hideAuthOverlay();
+    updateUserDisplay(demoUser);
+    return;
+  }
+
   if (password.length < 6) {
     showAuthError('Password must be at least 6 characters long');
     return;
@@ -1867,10 +1892,17 @@ async function handleSignUp() {
 }
 
 /**
- * Handle sign out
+ * Handle sign out.
  */
 async function handleSignOut() {
   try {
+    if (isDemoSessionActive()) {
+      await signOutDemo();
+      showAuthOverlay();
+      updateUserDisplay(null);
+      return;
+    }
+
     const { error } = await supabase.auth.signOut();
     
     if (error) {
