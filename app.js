@@ -516,12 +516,16 @@ async function analyzeUserContext() {
   let journalEntries = [];
   const user = await getCurrentUser();
   if (user) {
-    const { data: entries, error } = await supabase
-      .from('journal_entries')
-      .select('id')
-      .eq('user_id', user.id);
-    if (!error && entries) {
-      journalEntries = entries;
+    if (user.isDemo || user.sessionType === 'demo') {
+      journalEntries = load(`journalEntries_${user.id}`, []);
+    } else {
+      const { data: entries, error } = await supabase
+        .from('journal_entries')
+        .select('id')
+        .eq('user_id', user.id);
+      if (!error && entries) {
+        journalEntries = entries;
+      }
     }
   } else {
     // Fallback to localStorage for non-authenticated users
@@ -830,17 +834,12 @@ async function saveJournalEntry() {
 
   console.log('Textarea has content, checking authentication...');
 
-  // ═══════════════════════════════════════════════════════════════
-  //   DATABASE: Check authentication before saving to Supabase
-  //   Use getCurrentUser() as the single source of truth
-  // ═══════════════════════════════════════════════════════════════
   const user = await getCurrentUser();
   
   console.log('User check result:', { user: !!user });
   
   if (!user) {
     console.log('User not authenticated, showing sign in message');
-    // User is not authenticated - show friendly message
     const btn = document.getElementById("saveEntry");
     if (btn) {
       const orig = btn.textContent;
@@ -850,27 +849,57 @@ async function saveJournalEntry() {
     return;
   }
 
+  const prompt = JOURNAL_PROMPTS[state.currentPromptIndex];
+  const text = textarea.value.trim();
+
+  if (user.isDemo || user.sessionType === 'demo') {
+    const entry = {
+      id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `demo-${Date.now()}`,
+      user_id: user.id,
+      date: todayKey(),
+      text,
+      prompt: prompt.text,
+      prompt_source: prompt.source,
+      created_at: new Date().toISOString(),
+    };
+
+    const demoEntries = load(`journalEntries_${user.id}`, []);
+    const nextEntries = [entry, ...demoEntries].slice(0, 200);
+    save(`journalEntries_${user.id}`, nextEntries);
+
+    save("journalDraft", "");
+    textarea.value = "";
+    const wc = document.getElementById("wordCount");
+    if (wc) wc.textContent = "0 words";
+    await renderEntries();
+
+    const btn = document.getElementById("saveEntry");
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = "Saved! ✓";
+      setTimeout(() => btn.textContent = orig, 1500);
+    }
+    return;
+  }
+
   console.log('User authenticated, preparing to save to Supabase');
   console.log('User ID:', user.id);
   console.log('Entry data:', {
     user_id: user.id,
     date: todayKey(),
-    text_length: textarea.value.trim().length,
-    prompt: JOURNAL_PROMPTS[state.currentPromptIndex].text,
-    prompt_source: JOURNAL_PROMPTS[state.currentPromptIndex].source
+    text_length: text.length,
+    prompt: prompt.text,
+    prompt_source: prompt.source
   });
 
-  // ═══════════════════════════════════════════════════════════════
-  //   DATABASE: Save journal entry to Supabase journal_entries table
-  // ═══════════════════════════════════════════════════════════════
   const { data, error } = await supabase
     .from('journal_entries')
     .insert({
       user_id: user.id,
       date: todayKey(),
-      text: textarea.value.trim(),
-      prompt: JOURNAL_PROMPTS[state.currentPromptIndex].text,
-      prompt_source: JOURNAL_PROMPTS[state.currentPromptIndex].source,
+      text,
+      prompt: prompt.text,
+      prompt_source: prompt.source,
     })
     .select()
     .single();
@@ -894,20 +923,14 @@ async function saveJournalEntry() {
 
   console.log('Journal entry saved successfully:', data);
 
-  // Clear draft and textarea
-  // ═══════════════════════════════════════════════════════════════
-  //   NOTE: Draft is cleared from localStorage after successful save
-  // ═══════════════════════════════════════════════════════════════
   save("journalDraft", "");
   textarea.value = "";
   const wc = document.getElementById("wordCount");
   if (wc) wc.textContent = "0 words";
   
   console.log('Calling renderEntries() to refresh list...');
-  // Refresh entries list from database
   renderEntries();
 
-  // Visual feedback
   const btn = document.getElementById("saveEntry");
   if (btn) {
     const orig = btn.textContent;
@@ -925,28 +948,36 @@ async function renderEntries() {
     return;
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  //   DATABASE: Check authentication before loading from Supabase
-  //   Use getCurrentUser() as the single source of truth
-  // ═══════════════════════════════════════════════════════════════
   const user = await getCurrentUser();
   
   console.log('renderEntries() user check:', { user: !!user });
   
   if (!user) {
     console.log('User not authenticated, showing sign in message');
-    // User is not authenticated - show empty state
     list.innerHTML = '<p class="empty-state">Sign in to view your journal entries.</p>';
+    return;
+  }
+
+  if (user.isDemo || user.sessionType === 'demo') {
+    console.log('User authenticated as demo, loading local journal entries');
+    const entries = load(`journalEntries_${user.id}`, []);
+    if (!entries || entries.length === 0) {
+      list.innerHTML = '<p class="empty-state">Your story begins with a single page.</p>';
+      return;
+    }
+
+    list.innerHTML = entries.slice(0, 10).map(e => `
+      <div class="entry-item" onclick="loadEntry('${e.id}')">
+        <div class="entry-date">${formatDate(e.date)}</div>
+        <div class="entry-preview">${e.text.substring(0, 80)}${e.text.length > 80 ? "..." : ""}</div>
+      </div>
+    `).join("");
     return;
   }
 
   console.log('User authenticated, loading entries from Supabase');
   console.log('User ID:', user.id);
 
-  // ═══════════════════════════════════════════════════════════════
-  //   DATABASE: Load journal entries from Supabase journal_entries table
-  //   Order by created_at descending to show newest first
-  // ═══════════════════════════════════════════════════════════════
   const { data: entries, error } = await supabase
     .from('journal_entries')
     .select('*')
@@ -976,7 +1007,6 @@ async function renderEntries() {
 
   console.log(`Found ${entries.length} entries, rendering...`);
 
-  // Render entries
   list.innerHTML = entries.map(e => `
     <div class="entry-item" onclick="loadEntry('${e.id}')">
       <div class="entry-date">${formatDate(e.date)}</div>
@@ -988,10 +1018,6 @@ async function renderEntries() {
 async function loadEntry(id) {
   console.log('loadEntry() called with id:', id);
   
-  // ═══════════════════════════════════════════════════════════════
-  //   DATABASE: Check authentication before loading from Supabase
-  //   Use getCurrentUser() as the single source of truth
-  // ═══════════════════════════════════════════════════════════════
   const user = await getCurrentUser();
   
   console.log('loadEntry() user check:', { user: !!user });
@@ -1001,12 +1027,17 @@ async function loadEntry(id) {
     return;
   }
 
+  if (user.isDemo || user.sessionType === 'demo') {
+    const entries = load(`journalEntries_${user.id}`, []);
+    const entry = (entries || []).find((item) => item.id === id);
+    const textarea = document.getElementById("journalTextarea");
+    if (textarea && entry) textarea.value = entry.text;
+    return;
+  }
+
   console.log('User authenticated, loading entry from Supabase');
   console.log('User ID:', user.id);
 
-  // ═══════════════════════════════════════════════════════════════
-  //   DATABASE: Load specific journal entry from Supabase by UUID
-  // ═══════════════════════════════════════════════════════════════
   const { data: entry, error } = await supabase
     .from('journal_entries')
     .select('*')

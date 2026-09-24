@@ -85,6 +85,45 @@ export function signInDemo(email, password) {
   return user;
 }
 
+export function getDemoJournalKey(userId) {
+  return `journalEntries_${String(userId || 'anonymous')}`;
+}
+
+export function getDemoJournalEntries(user) {
+  if (!user || !user.id) return [];
+
+  try {
+    const entries = load(getDemoJournalKey(user.id), []);
+    return Array.isArray(entries) ? entries : [];
+  } catch (err) {
+    console.warn('Unable to read demo journal entries:', err);
+    return [];
+  }
+}
+
+export function saveDemoJournalEntries(user, entries) {
+  if (!user || !user.id) return [];
+
+  const nextEntries = Array.isArray(entries) ? entries : [];
+  try {
+    save(getDemoJournalKey(user.id), nextEntries);
+    return nextEntries;
+  } catch (err) {
+    console.warn('Unable to persist demo journal entries:', err);
+    return nextEntries;
+  }
+}
+
+export function saveDemoJournalEntry(user, entry) {
+  const entries = getDemoJournalEntries(user);
+  const nextEntries = [entry, ...entries].slice(0, 200);
+  return saveDemoJournalEntries(user, nextEntries);
+}
+
+export function loadDemoJournalEntry(user, id) {
+  return getDemoJournalEntries(user).find((entry) => entry.id === id) || null;
+}
+
 export async function signOutDemo() {
   clearDemoSession();
   try {
@@ -111,4 +150,22 @@ export async function getCurrentUser() {
     return null;
   }
   return user;
+}
+
+function load(key, fallback) {
+  try {
+    const raw = localStorage.getItem(`mindroot_${key}`);
+    return raw !== null ? JSON.parse(raw) : fallback;
+  } catch (err) {
+    console.warn('Local storage unavailable:', err);
+    return fallback;
+  }
+}
+
+function save(key, value) {
+  try {
+    localStorage.setItem(`mindroot_${key}`, JSON.stringify(value));
+  } catch (err) {
+    console.warn('Local storage unavailable:', err);
+  }
 }
